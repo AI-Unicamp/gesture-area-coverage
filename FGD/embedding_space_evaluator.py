@@ -2,22 +2,40 @@ import numpy as np
 import torch
 from scipy import linalg
 
-from embedding_net import EmbeddingNet
+from FGD.embedding_net import EmbeddingNet
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)  # ignore warnings
 
 
 class EmbeddingSpaceEvaluator:
-    def __init__(self, embed_net_path, n_frames, device):
-        # init embed net
-        ckpt = torch.load(embed_net_path, map_location=device)
-        self.pose_dim = ckpt['pose_dim']
-        self.net = EmbeddingNet(self.pose_dim, n_frames).to(device)
-        self.net.load_state_dict(ckpt['gen_dict'])
-        self.net.train(False)
+    def __init__(self, embed_net_path, n_frames, device, dummy=False):
+        if not dummy:
+            # init embed net
+            ckpt = torch.load(embed_net_path, map_location=device)
+            self.pose_dim = ckpt['pose_dim']
+            self.net = EmbeddingNet(self.pose_dim, n_frames).to(device)
+            self.net.load_state_dict(ckpt['gen_dict'])
+            self.net.train(False)
 
-        self.reset()
+            self.reset()
+
+    def run_samples(self, network, loader, device):
+        """
+        Get the features for all samples.
+        """
+        network.eval()
+        with torch.no_grad():
+            embeddings, original_labels, samples = [], [], []
+            for j, data in enumerate(loader):
+                inputs, labels = data
+                inputs = inputs.to(device).float()
+                f, _ = network(inputs)
+                embeddings.extend(f.data.cpu().numpy())
+                original_labels.extend(labels)
+            embeddings = np.array(embeddings)
+            original_labels = np.array(original_labels)
+            return embeddings, original_labels
 
     def reset(self):
         self.real_samples = []
@@ -57,6 +75,7 @@ class EmbeddingSpaceEvaluator:
         try:
             frechet_dist = self.calculate_frechet_distance(A_mu, A_sigma, B_mu, B_sigma)
         except ValueError:
+            print('Something went wrong')
             frechet_dist = 1e+10
         return frechet_dist
 

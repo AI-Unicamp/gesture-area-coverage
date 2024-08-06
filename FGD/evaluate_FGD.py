@@ -3,8 +3,8 @@ import os
 import numpy as np
 import torch
 
-from embedding_space_evaluator import EmbeddingSpaceEvaluator
-from train_AE import make_tensor
+from FGD.embedding_space_evaluator import EmbeddingSpaceEvaluator
+from FGD.train_AE import make_tensor
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
