@@ -18,8 +18,6 @@ class EmbeddingSpaceEvaluator:
             self.net.load_state_dict(ckpt['gen_dict'])
             self.net.train(False)
 
-            self.reset()
-
     def run_samples(self, network, loader, device):
         """
         Get the features for all samples. 
@@ -37,36 +35,6 @@ class EmbeddingSpaceEvaluator:
             embeddings = np.array(embeddings)
             original_labels = np.array(original_labels)
             return embeddings, original_labels
-
-    def reset(self):
-        self.real_samples = []
-        self.generate_samples = []
-        self.real_feat_list = []
-        self.generated_feat_list = []
-
-    def get_no_of_samples(self):
-        return len(self.real_feat_list)
-
-    def push_real_samples(self, samples):
-        feat, _ = self.net(samples)
-        self.real_samples.append(samples.cpu().numpy().reshape(samples.shape[0], -1))
-        self.real_feat_list.append(feat.data.cpu().numpy())
-
-    def push_generated_samples(self, samples):
-        feat, _ = self.net(samples)
-        self.generate_samples.append(samples.cpu().numpy().reshape(samples.shape[0], -1))
-        self.generated_feat_list.append(feat.data.cpu().numpy())
-
-    def get_fgd(self, use_feat_space=True):
-        if use_feat_space:  # on feature space
-            generated_data = np.vstack(self.generated_feat_list)
-            real_data = np.vstack(self.real_feat_list)
-        else:  # on raw pose space
-            generated_data = np.vstack(self.generate_samples)
-            real_data = np.vstack(self.real_samples)
-
-        frechet_dist = self.frechet_distance(generated_data, real_data)
-        return frechet_dist
 
     def frechet_distance(self, samples_A, samples_B):
         A_mu = np.mean(samples_A, axis=0)
