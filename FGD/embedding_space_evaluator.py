@@ -22,7 +22,8 @@ class EmbeddingSpaceEvaluator:
 
     def run_samples(self, network, loader, device):
         """
-        Get the features for all samples.
+        Get the features for all samples. 
+        The parameter network should be the same as self.net but we adopt an explicit approach to allow for a dummy EmbeddingSpaceEvaluator (used during training).
         """
         network.eval()
         with torch.no_grad():
