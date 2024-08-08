@@ -7,10 +7,13 @@ from GAC.gac import DiceScore
 import plots
 import torch
 from torch.utils.data import DataLoader
+from scipy.stats import spearmanr
+from scipy.stats import kendalltau
 
 GENEA_ENTRIES   = ['BD', 'BM', 'NA', 'SA', 'SB', 'SC', 'SD', 'SE', 'SF', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL']
 ALIGNED_ENTRIES = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', 'SI', 'SK', 'SA', 'SB', 'SC']
 HL_MEDIAN       = [  71,   69,   65,   51,   51,   50,   46,   46,   45,   43,   40,   37,   30,   24,    9]
+HL_MEAN         = [68.4, 65.6, 63.6, 51.8, 50.6, 50.9, 45.1, 45.3, 44.7, 42.9, 41.4, 40.2, 32.0, 27.4, 11.6]
 
 def load_data(step,
               window,
@@ -144,15 +147,54 @@ def compute_gac(genea_entries_datasets,
 
     return aligned_setstats
 
+def compute_correlation(func, arr1, arr2):
+    rho, p_value = func(arr1, arr2)
+    print(f'Correlation: {rho:.2f}. p-value: {p_value:.2f}')
+
 def report_gac_fgd(aligned_setstats,
                    aligned_fgds_trn,
                    aligned_fgds_NA,
                    ):
     aligned_dice = [np.mean([entry[0] for entry in setstats]) for setstats in aligned_setstats]
+
+    # HL Median vs FGD and Dice
     fig = plots.plot_HL_versus_dice_fgd(HL_MEDIAN, aligned_fgds_NA, aligned_dice, ALIGNED_ENTRIES)
     if not os.path.exists('./figures'):
         os.makedirs('./figures')
     fig.savefig('./figures/fgd_vs_dice.png')
+
+    # HL Mean vs FGD and Dice
+    fig = plots.plot_HL_versus_dice_fgd(HL_MEAN, aligned_fgds_NA, aligned_dice, ALIGNED_ENTRIES)
+    if not os.path.exists('./figures'):
+        os.makedirs('./figures')
+    fig.savefig('./figures/fgd_vs_dice_mean.png')
+
+    print(aligned_fgds_NA)
+    print(aligned_dice)
+
+    # Spearman correlation between HL Median vs FGD and Dice
+    print('Spearman correlation between FGD and HL Median:')
+    compute_correlation(spearmanr, HL_MEDIAN[1:], aligned_fgds_NA)
+    print('Spearman correlation between Dice and HL Median:')
+    compute_correlation(spearmanr, HL_MEDIAN[1:], aligned_dice[1:])
+
+    # Kendall correlation between HL Median vs FGD and Dice
+    print('Kendall\'s tau  correlation between FGD and HL Median:')
+    compute_correlation(kendalltau, HL_MEDIAN[1:], aligned_fgds_NA)
+    print('Kendall\'s tau correlation between Dice and HL Median:')
+    compute_correlation(kendalltau, HL_MEDIAN[1:], aligned_dice[1:])
+    
+    # Spearman correlation between HL Mean vs FGD and Dice
+    print('Spearman correlation between FGD and HL Mean:')
+    compute_correlation(spearmanr, HL_MEAN[1:], aligned_fgds_NA)
+    print('Spearman correlation between Dice and HL Mean:')
+    compute_correlation(spearmanr, HL_MEAN[1:], aligned_dice[1:])
+
+    # Kendall correlation between HL Mean vs FGD and Dice
+    print('Kendall\'s tau correlation between FGD and HL Mean:')
+    compute_correlation(kendalltau, HL_MEAN[1:], aligned_fgds_NA)
+    print('Kendall\'s tau correlation between Dice and HL Mean:')
+    compute_correlation(kendalltau, HL_MEAN[1:], aligned_dice[1:])
 
 def load_fgd(fgd_output_path):
     aligned_fgds_trn = np.load(os.path.join(fgd_output_path, 'aligned_fgds_trn.npy'), allow_pickle=True)
