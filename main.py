@@ -81,7 +81,9 @@ def compute_fgd(genea_trn_loader,
     # Print
     print(f'FGD (NA, TRN): {NA_trn_FGD:.2f}. HL: {HL_MEDIAN[0]}')
     for i, entry in enumerate(ALIGNED_ENTRIES[1:]):
-        print(f'FGD (NA, {entry}): {aligned_fgds_NA[i]:.2f}. FGD (TRN, {entry}): {aligned_fgds_trn[i]:.2f}. HL: {HL_MEDIAN[i+1]}')    
+        print(f'FGD (NA, {entry}): {aligned_fgds_NA[i]:.2f}. FGD (TRN, {entry}): {aligned_fgds_trn[i]:.2f}. HL: {HL_MEDIAN[i+1]}')
+
+    return aligned_fgds_trn, aligned_fgds_NA
 
 def compute_gac(genea_entries_datasets,
                 frame_skip = 1,
@@ -139,11 +141,30 @@ def compute_gac(genea_entries_datasets,
         os.makedirs(os.path.dirname(gac_save_path))
     np.save(gac_save_path, aligned_setstats, allow_pickle=True)
 
+    return aligned_setstats
+
+def load_fgd(fgd_output_path):
+    aligned_fgds_trn = np.load(os.path.join(fgd_output_path, 'aligned_fgds_trn.npy'), allow_pickle=True)
+    aligned_fgds_NA  = np.load(os.path.join(fgd_output_path, 'aligned_fgds_NA.npy' ), allow_pickle=True)
+    return aligned_fgds_trn, aligned_fgds_NA
+
+def load_gac(gac_output_path,
+             genea_entries_datasets = None):
+    aligned_setstats = np.load(gac_output_path, allow_pickle=True)
+    if genea_entries_datasets is not None:
+        for i, entry in enumerate(ALIGNED_ENTRIES):
+            genea_entries_datasets[GENEA_ENTRIES.index(entry)].setstats = aligned_setstats[i]
+    return aligned_setstats
+
 if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     step = 10
     window = 120
     batch_size = 64
     genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data(step, window, batch_size)
-    compute_fgd(genea_trn_loader, genea_entries_loaders)
-    compute_gac(genea_entries_datasets)
+    if False: # Set to True to recompute the FGD and GAC metrics
+        aligned_fgds_trn, aligned_fgds_NA = compute_fgd(genea_trn_loader, genea_entries_loaders)
+        aligned_setstats = compute_gac(genea_entries_datasets)
+    else:
+        aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
+        aligned_setstats = load_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
