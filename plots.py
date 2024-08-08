@@ -16,7 +16,7 @@ def plot_HL_versus_dice_fgd(hl_ratings,
     for i, entry in enumerate(aligned_entries[1:]):
         x,y = [
             [0,0],      #SG
-            [0,0],      #SF
+            [12,0],     #SF
             [12,2.5],   #SJ
             [12,0],     #SL
             [12,0],     #SE
