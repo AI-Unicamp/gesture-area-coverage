@@ -4,6 +4,7 @@ from loader import DatasetBVHLoader
 from FGD.embedding_space_evaluator import EmbeddingSpaceEvaluator
 from GAC import rasterizer
 from GAC.gac import DiceScore
+import plots
 import torch
 from torch.utils.data import DataLoader
 
@@ -143,6 +144,16 @@ def compute_gac(genea_entries_datasets,
 
     return aligned_setstats
 
+def report_gac_fgd(aligned_setstats,
+                   aligned_fgds_trn,
+                   aligned_fgds_NA,
+                   ):
+    aligned_dice = [np.mean([entry[0] for entry in setstats]) for setstats in aligned_setstats]
+    fig = plots.plot_HL_versus_dice_fgd(HL_MEDIAN, aligned_fgds_NA, aligned_dice, ALIGNED_ENTRIES)
+    if not os.path.exists('./figures'):
+        os.makedirs('./figures')
+    fig.savefig('./figures/fgd_vs_dice.png')
+
 def load_fgd(fgd_output_path):
     aligned_fgds_trn = np.load(os.path.join(fgd_output_path, 'aligned_fgds_trn.npy'), allow_pickle=True)
     aligned_fgds_NA  = np.load(os.path.join(fgd_output_path, 'aligned_fgds_NA.npy' ), allow_pickle=True)
@@ -168,3 +179,4 @@ if __name__ == '__main__':
     else:
         aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
         aligned_setstats = load_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
+    report_gac_fgd(aligned_setstats, aligned_fgds_trn, aligned_fgds_NA)
