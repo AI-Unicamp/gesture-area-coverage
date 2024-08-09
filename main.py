@@ -15,12 +15,12 @@ ALIGNED_ENTRIES = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', '
 HL_MEDIAN       = [  71,   69,   65,   51,   51,   50,   46,   46,   45,   43,   40,   37,   30,   24,    9]
 HL_MEAN         = [68.4, 65.6, 63.6, 51.8, 50.6, 50.9, 45.1, 45.3, 44.7, 42.9, 41.4, 40.2, 32.0, 27.4, 11.6]
 
-def load_data(step,
-              window,
-              batch_size,
-              genea_trn_path='./dataset/Genea2023/trn/main-agent/bvh',
-              genea_entries_path='./dataset/SubmittedGenea2023/BVH',
-              ):
+def load_data_genea2023(step,
+                        window,
+                        batch_size,
+                        genea_trn_path='./dataset/Genea2023/trn/main-agent/bvh',
+                        genea_entries_path='./dataset/SubmittedGenea2023/BVH',
+                        ):
     # Load GENEA train dataset
     print('Loading GENEA train dataset')
     genea_trn_dataset = DatasetBVHLoader(name='trn', 
@@ -48,6 +48,29 @@ def load_data(step,
                                                         batch_size=batch_size, 
                                                         shuffle=False)})
     return genea_trn_loader, genea_entries_loaders, genea_entries_datasets
+
+def load_data_zeggs(step,
+                    window,
+                    fps,
+                    njoints,
+                    zeggs_path='./dataset/ZEGGS/'):
+    zeggs_dataset = DatasetBVHLoader(name='zeggs', 
+                                     path=zeggs_path, 
+                                     load=True,  #change to False to compute a save processed data
+                                     pos_mean = os.path.join(zeggs_path, 'processed', 'zeggs_bvh_positions_mean.npy'),
+                                     pos_std = os.path.join(zeggs_path, 'processed', 'zeggs_bvh_positions_std.npy'),
+                                     rot3d_mean = os.path.join(zeggs_path, 'processed', 'zeggs_bvh_3drotations_mean.npy'),
+                                     rot3d_std = os.path.join(zeggs_path, 'processed', 'zeggs_bvh_3drotations_std.npy'),
+                                     step=step,
+                                     window=window,
+                                     fps=fps,
+                                     njoints=njoints,
+                                     )
+    styles = ['Neutral', 'Sad', 'Happy', 'Relaxed', 'Old', 'Angry', 
+          'Agreement', 'Disagreement', 'Flirty', 'Pensive', 'Scared', 
+          'Distracted', 'Sarcastic', 'Threatening', 'Still', 'Laughing',
+          'Sneaky', 'Tired', 'Speech']
+    return zeggs_dataset, styles
 
 def compute_fgd(genea_trn_loader,
                 genea_entries_loaders,
@@ -89,7 +112,7 @@ def compute_fgd(genea_trn_loader,
 
     return aligned_fgds_trn, aligned_fgds_NA
 
-def compute_gac(genea_entries_datasets,
+def compute_gac_genea2023(genea_entries_datasets,
                 frame_skip = 1,
                 grid_step = 0.5,
                 weigth = 1,
@@ -146,6 +169,60 @@ def compute_gac(genea_entries_datasets,
     np.save(gac_save_path, aligned_setstats, allow_pickle=True)
 
     return aligned_setstats
+
+def compute_gac_zeggs(zeggs_dataset,
+                      styles,
+                      frame_skip = 1,
+                      grid_step = 0.5,
+                      weigth = 1,
+                      ):
+    
+    # Computing neutral grids
+    neutral_styles_grids = []
+    for i in range(5):
+        neutral_styles_grids.append(rasterizer.rasterize(zeggs_dataset.posLckHips()[i]-[0,-100,0], 
+                                                         zeggs_dataset.parents, 
+                                                         frame_skip=frame_skip, 
+                                                         grid_step=grid_step, 
+                                                         weigth=weigth))
+        neutral_styles_grids[-1].clipped = np.clip(neutral_styles_grids[-1].grid, 0, 1)
+
+    # For each style (1), get the gac of each take in the given style (2), and compute the statistics for each neutral take (3)
+
+    zeggs_setstats = {style: [] for style in styles[1:]}
+    # For each style (1)
+    for style_num, style in enumerate(styles[1:], start=1):
+        print(f'Computing style {style_num}: {style}')
+        mean_style_setstats = []
+        sum_style_setstats = []
+        
+        # For each take in the given style (2)
+        # Search for the take (I'm doing like this because files might not be ordered)
+        for take_idx, take in enumerate(zeggs_dataset.files[5:], start=5):
+            if take.split('_')[1] == style:
+                print(take)
+                # Get the gac
+                style_grid = rasterizer.rasterize(zeggs_dataset.posLckHips()[take_idx]-[0,-100,0], 
+                                                  zeggs_dataset.parents, 
+                                                  frame_skip=frame_skip, 
+                                                  grid_step=grid_step, 
+                                                  weigth=weigth)
+                style_grid.clipped = np.clip(style_grid.grid, 0, 1)
+                
+                # Compute statistics for each neutral take (3)
+                aux_setstats = []
+                for neutral_styles_grid in neutral_styles_grids:
+                    aux_setstats.append(DiceScore(neutral_styles_grid.clipped, style_grid.clipped))
+                    
+                # Get the mean and sum of the statistics of this take for each neutral take
+                mean_style_setstats.append(np.mean(aux_setstats, axis = 0))
+                sum_style_setstats.append(np.sum(aux_setstats, axis = 0)/zeggs_dataset.pos[take_idx].shape[0])
+                
+        # For every take of the given style, get the mean and std of the statistics
+        zeggs_setstats[style] = [np.mean(mean_style_setstats, axis=0), 
+                                 np.std(mean_style_setstats, axis=0) ,
+                                 np.mean(sum_style_setstats, axis=0) , 
+                                 np.std(sum_style_setstats, axis=0)  ]
 
 def compute_correlation(func, arr1, arr2):
     rho, p_value = func(arr1, arr2)
@@ -214,11 +291,18 @@ if __name__ == '__main__':
     step = 10
     window = 120
     batch_size = 64
-    genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data(step, window, batch_size)
+    genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data_genea2023(step, window, batch_size)
     if False: # Set to True to recompute the FGD and GAC metrics
         aligned_fgds_trn, aligned_fgds_NA = compute_fgd(genea_trn_loader, genea_entries_loaders)
-        aligned_setstats = compute_gac(genea_entries_datasets)
+        aligned_setstats = compute_gac_genea2023(genea_entries_datasets)
     else:
         aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
         aligned_setstats = load_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
     report_gac_fgd(aligned_setstats, aligned_fgds_trn, aligned_fgds_NA)
+
+    step=10,
+    window=120
+    fps=60
+    njoints = 75
+    zeggs_dataset, styles = load_data_zeggs(step, window, fps, njoints)
+    compute_gac_zeggs(zeggs_dataset, styles)
