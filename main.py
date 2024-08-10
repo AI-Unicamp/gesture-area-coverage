@@ -223,6 +223,7 @@ def compute_gac_zeggs(zeggs_dataset,
                                  np.std(mean_style_setstats, axis=0) ,
                                  np.mean(sum_style_setstats, axis=0) , 
                                  np.std(sum_style_setstats, axis=0)  ]
+    return zeggs_setstats
 
 def compute_correlation(func, arr1, arr2):
     rho, p_value = func(arr1, arr2)
@@ -300,9 +301,8 @@ if __name__ == '__main__':
         aligned_setstats = load_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
     report_gac_fgd(aligned_setstats, aligned_fgds_trn, aligned_fgds_NA)
 
-    step=10,
-    window=120
     fps=60
     njoints = 75
     zeggs_dataset, styles = load_data_zeggs(step, window, fps, njoints)
-    compute_gac_zeggs(zeggs_dataset, styles)
+    zeggs_setstats = compute_gac_zeggs(zeggs_dataset, styles)
+    print(zeggs_setstats)
