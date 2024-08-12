@@ -3,7 +3,7 @@ import numpy as np
 from loader import DatasetBVHLoader
 from FGD.embedding_space_evaluator import EmbeddingSpaceEvaluator
 from GAC import rasterizer
-from GAC.gac import DiceScore
+from GAC.gac import SetStats
 import plots
 import torch
 from torch.utils.data import DataLoader
@@ -157,9 +157,9 @@ def compute_gac_genea2023(genea_entries_datasets,
             if entry_dataset.name != 'NA':
                 grid = rasterizer.rasterize(entry_dataset.posLckHips()[take][:cut], entry_dataset.parents, frame_skip=frame_skip, grid_step=grid_step, weigth=weigth)
                 grid.clipped = np.clip(grid.grid, 0, 1)
-                dice = DiceScore(nagrid.clipped, grid.clipped)
-                entry_dataset.setstats.append(dice)
-                print(f'{entry_dataset.name} dice: {dice[0]:.2f}')
+                stats = SetStats(nagrid.clipped, grid.clipped)
+                entry_dataset.setstats.append(stats)
+                print(f'{entry_dataset.name} dice: {stats[0]:.2f}')
 
     # Genea entries aligned with human-likeness ratings
     aligned_setstats = [entry.setstats for entry in genea_entries_datasets]
@@ -167,6 +167,14 @@ def compute_gac_genea2023(genea_entries_datasets,
     if not os.path.exists(os.path.dirname(gac_save_path)):
         os.makedirs(os.path.dirname(gac_save_path))
     np.save(gac_save_path, aligned_setstats, allow_pickle=True)
+
+    # Save as csv
+    csv = f'entry,take,dice,fpfn_ratio,log_ratio,s1,s2,tp,fp,fn\n'
+    for i, entry in enumerate(ALIGNED_ENTRIES):
+        for j, stats in enumerate(aligned_setstats[i]):
+            csv += f'{entry},{j},{stats[0]},{stats[1]},{stats[2]},{stats[3]},{stats[4]},{stats[5]},{stats[6]},{stats[7]}\n'
+    with open(f'./GAC/output/genea_setstats.csv', 'w') as f:
+        f.write(csv)
 
     return aligned_setstats
 
@@ -190,6 +198,7 @@ def compute_gac_zeggs(zeggs_dataset,
     # For each style (1), get the gac of each take in the given style (2), and compute the statistics for each neutral take (3)
 
     zeggs_setstats = {style: [] for style in styles[1:]}
+    csv = f'neutral_take,style_take,dice,fpfn_ratio,log_ratio,s1,s2,tp,fp,fn\n'
     # For each style (1)
     for style_num, style in enumerate(styles[1:], start=1):
         print(f'Computing style {style_num}: {style}')
@@ -211,9 +220,10 @@ def compute_gac_zeggs(zeggs_dataset,
                 
                 # Compute statistics for each neutral take (3)
                 aux_setstats = []
-                for neutral_styles_grid in neutral_styles_grids:
-                    aux_setstats.append(DiceScore(neutral_styles_grid.clipped, style_grid.clipped))
-                    
+                for neutral_grid, neutral_styles_grid in enumerate(neutral_styles_grids):
+                    aux_setstats.append(SetStats(neutral_styles_grid.clipped, style_grid.clipped))
+                    csv += f'{neutral_grid},{style+str(take_idx)},{aux_setstats[-1][0]},{aux_setstats[-1][1]},{aux_setstats[-1][2]},{aux_setstats[-1][3]},{aux_setstats[-1][4]},{aux_setstats[-1][5]},{aux_setstats[-1][6]},{aux_setstats[-1][7]}\n'
+
                 # Get the mean and sum of the statistics of this take for each neutral take
                 mean_style_setstats.append(np.mean(aux_setstats, axis = 0))
                 sum_style_setstats.append(np.sum(aux_setstats, axis = 0)/zeggs_dataset.pos[take_idx].shape[0])
@@ -223,6 +233,21 @@ def compute_gac_zeggs(zeggs_dataset,
                                  np.std(mean_style_setstats, axis=0) ,
                                  np.mean(sum_style_setstats, axis=0) , 
                                  np.std(sum_style_setstats, axis=0)  ]
+        
+    csv += '\nstyle,dice,dice_std,fpfn_ratio,fpfn_ratio_std,log_ratio,log_ratio_std,s1,s1_std,s2,s2_std,tp,tp_std,fp,fp_std,fn,fn_std\n'
+    for style in zeggs_setstats:
+        mean, std, sum_mean, sum_std = zeggs_setstats[style]
+        csv += f'{style},{mean[0]},{std[0]},{mean[1]},{std[1]},{mean[2]},{std[2]},{mean[3]},{std[3]},{mean[4]},{std[4]},{mean[5]},{std[5]},{mean[6]},{std[6]},{mean[7]},{std[7]}\n'
+    
+    csv += '\nNormalized\n'
+    for style in zeggs_setstats:
+        mean, std, sum_mean, sum_std = zeggs_setstats[style]
+        csv += f'{style},{sum_mean[0]},{sum_std[0]},{sum_mean[1]},{sum_std[1]},{sum_mean[2]},{sum_std[2]},{sum_mean[3]},{sum_std[3]},{sum_mean[4]},{sum_std[4]},{sum_mean[5]},{sum_std[5]},{sum_mean[6]},{sum_std[6]},{sum_mean[7]},{sum_std[7]}\n'
+
+    # Save as csv
+    with open(f'./GAC/output/zeggs_setstats.csv', 'w') as f:
+        f.write(csv)
+
     return zeggs_setstats
 
 def compute_correlation(func, arr1, arr2):
@@ -305,4 +330,3 @@ if __name__ == '__main__':
     njoints = 75
     zeggs_dataset, styles = load_data_zeggs(step, window, fps, njoints)
     zeggs_setstats = compute_gac_zeggs(zeggs_dataset, styles)
-    print(zeggs_setstats)
