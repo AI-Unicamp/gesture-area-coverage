@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 from scipy.stats import spearmanr
 from scipy.stats import kendalltau
+import argparse
 
 GENEA_ENTRIES   = ['BD', 'BM', 'NA', 'SA', 'SB', 'SC', 'SD', 'SE', 'SF', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL']
 ALIGNED_ENTRIES = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', 'SI', 'SK', 'SA', 'SB', 'SC']
@@ -82,7 +83,7 @@ def compute_fgd(genea_trn_loader,
                                         device=device)
     
     # Compute features for GENEA train dataset and NA entry
-    print('Computing features for GENEA train dataset and NA entry')
+    print('Computing features for GENEA train dataset and NA entry (FGD)')
     genea_trn_feat, _ = evaluator.run_samples(evaluator.net, genea_trn_loader           , device)
     genea_NA_feat , _ = evaluator.run_samples(evaluator.net, genea_entries_loaders['NA'], device)
 
@@ -116,7 +117,7 @@ def compute_gac_genea2023(genea_entries_datasets,
                 frame_skip = 1,
                 grid_step = 0.5,
                 weigth = 1,
-                gac_save_path='./GAC/output/genea_setstats.npy',):
+                gac_save_path='./GAC/output',):
     """
     Compute the GAC metrics for all the entries in the GENEA dataset.
 
@@ -166,14 +167,14 @@ def compute_gac_genea2023(genea_entries_datasets,
     aligned_setstats = [aligned_setstats[GENEA_ENTRIES.index(entry)] for entry in ALIGNED_ENTRIES]
     if not os.path.exists(os.path.dirname(gac_save_path)):
         os.makedirs(os.path.dirname(gac_save_path))
-    np.save(gac_save_path, aligned_setstats, allow_pickle=True)
+    np.save(os.path.join(gac_save_path, 'genea_setstats.npy'), aligned_setstats, allow_pickle=True)
 
     # Save as csv
     csv = f'entry,take,dice,fpfn_ratio,log_ratio,s1,s2,tp,fp,fn\n'
     for i, entry in enumerate(ALIGNED_ENTRIES):
         for j, stats in enumerate(aligned_setstats[i]):
             csv += f'{entry},{j},{stats[0]},{stats[1]},{stats[2]},{stats[3]},{stats[4]},{stats[5]},{stats[6]},{stats[7]}\n'
-    with open(f'./GAC/output/genea_setstats.csv', 'w') as f:
+    with open(os.path.join(gac_save_path, 'genea_setstats.csv'), 'w') as f:
         f.write(csv)
 
     return aligned_setstats
@@ -183,6 +184,7 @@ def compute_gac_zeggs(zeggs_dataset,
                       frame_skip = 1,
                       grid_step = 0.5,
                       weigth = 1,
+                      gac_save_path='./GAC/output',
                       ):
     
     # Computing neutral grids
@@ -234,6 +236,8 @@ def compute_gac_zeggs(zeggs_dataset,
                                  np.mean(sum_style_setstats, axis=0) , 
                                  np.std(sum_style_setstats, axis=0)  ]
         
+    np.save(os.path.join(gac_save_path, 'zeggs_setstats.npy'), zeggs_setstats, allow_pickle=True)
+
     csv += '\nstyle,dice,dice_std,fpfn_ratio,fpfn_ratio_std,log_ratio,log_ratio_std,s1,s1_std,s2,s2_std,tp,tp_std,fp,fp_std,fn,fn_std\n'
     for style in zeggs_setstats:
         mean, std, sum_mean, sum_std = zeggs_setstats[style]
@@ -245,7 +249,7 @@ def compute_gac_zeggs(zeggs_dataset,
         csv += f'{style},{sum_mean[0]},{sum_std[0]},{sum_mean[1]},{sum_std[1]},{sum_mean[2]},{sum_std[2]},{sum_mean[3]},{sum_std[3]},{sum_mean[4]},{sum_std[4]},{sum_mean[5]},{sum_std[5]},{sum_mean[6]},{sum_std[6]},{sum_mean[7]},{sum_std[7]}\n'
 
     # Save as csv
-    with open(f'./GAC/output/zeggs_setstats.csv', 'w') as f:
+    with open(os.path.join(gac_save_path, 'zeggs_setstats.csv'), 'w') as f:
         f.write(csv)
 
     return zeggs_setstats
@@ -304,29 +308,51 @@ def load_fgd(fgd_output_path):
     aligned_fgds_NA  = np.load(os.path.join(fgd_output_path, 'aligned_fgds_NA.npy' ), allow_pickle=True)
     return aligned_fgds_trn, aligned_fgds_NA
 
-def load_gac(gac_output_path,
-             genea_entries_datasets = None):
+def load_genea_gac(gac_output_path,
+                   genea_entries_datasets = None):
     aligned_setstats = np.load(gac_output_path, allow_pickle=True)
     if genea_entries_datasets is not None:
         for i, entry in enumerate(ALIGNED_ENTRIES):
             genea_entries_datasets[GENEA_ENTRIES.index(entry)].setstats = aligned_setstats[i]
     return aligned_setstats
 
+def load_zeggs_gac(gac_output_path):
+    zeggs_setstats = np.load(gac_output_path, allow_pickle=True)
+    return zeggs_setstats
+
+def report_zeggs_gac(zeggs_dataset):
+    # Plot
+    fig = plots.plot_zeggs_gac_comparison(zeggs_dataset,
+                                          rasterizer)
+    if not os.path.exists('./figures'):
+        os.makedirs('./figures')
+    fig.savefig('./figures/zeggs_gac_comparison.png')
+
 if __name__ == '__main__':
+    # This script will compute the FGD and GAC metrics for the GENEA2023 and ZEGGS datasets.
+    # Should take about 3 hours to run.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--load', action='store_true', help='Includ this argument to load the precomputed FGD and GAC metrics.')
+    args = parser.parse_args()
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     step = 10
     window = 120
     batch_size = 64
+
     genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data_genea2023(step, window, batch_size)
-    if False: # Set to True to recompute the FGD and GAC metrics
+    if args.load:
+        aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
+        aligned_setstats = load_genea_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
+    else: # Set to True to recompute the FGD and GAC metrics
         aligned_fgds_trn, aligned_fgds_NA = compute_fgd(genea_trn_loader, genea_entries_loaders)
         aligned_setstats = compute_gac_genea2023(genea_entries_datasets)
-    else:
-        aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
-        aligned_setstats = load_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
+        
     report_gac_fgd(aligned_setstats, aligned_fgds_trn, aligned_fgds_NA)
 
-    fps=60
-    njoints = 75
-    zeggs_dataset, styles = load_data_zeggs(step, window, fps, njoints)
-    zeggs_setstats = compute_gac_zeggs(zeggs_dataset, styles)
+    zeggs_dataset, styles = load_data_zeggs(step, window, fps=60, njoints=75)
+    if args.load:
+        zeggs_setstats = load_zeggs_gac('./GAC/output/zeggs_setstats.npy')
+    else:
+        zeggs_setstats = compute_gac_zeggs(zeggs_dataset, styles)        
+    report_zeggs_gac(zeggs_dataset)

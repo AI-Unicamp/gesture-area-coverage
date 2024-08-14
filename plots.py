@@ -77,9 +77,85 @@ def plot_HL_versus_dice_fgd(hl_ratings,
     
     return fig
 
-    #ymin, ymax = ax.get_ylim()
-    #limits = [0, 9, 18, 27, 40, 53, 66, 75, 84, 93, 106, 119, 131]
-    #xticks = np.arange(len(scores[1:]))
-    #ax.set_ylim(0, 1)
-    #ax.set_xticks(xticks)
-    #_=ax.set_xticklabels(scores[1:], fontdict={'fontsize': 20})
+def plot_zeggs_gac_comparison(zeggs_dataset,
+                              rasterizer,
+                              neutral_idx = 2,
+                              comp1_idx = 5, 
+                              comp2_idx = 14,
+                              frame_skip = 1,
+                              grid_step = 0.5,
+                              weigth = 1,
+                              ):
+
+    neutral = rasterizer.rasterize(zeggs_dataset.posLckHips()[neutral_idx]-[0,-100,0],  #Subtracting 100 to keep it in center
+                                   zeggs_dataset.parents, 
+                                   frame_skip=frame_skip, 
+                                   grid_step=grid_step, 
+                                   weigth=weigth,
+                                   skipfirstjoints=1)
+    neutral.clipped = np.clip(neutral.grid, 0, 1)
+
+    comp1 = rasterizer.rasterize(zeggs_dataset.posLckHips()[comp1_idx]-[0,-100,0], #Subtracting 100 to keep it in center
+                                 zeggs_dataset.parents, 
+                                 frame_skip=frame_skip, 
+                                 grid_step=grid_step, 
+                                 weigth=weigth,
+                                 skipfirstjoints=1)
+    comp1.clipped = np.clip(comp1.grid, 0, 1).astype(float)
+
+    comp2 = rasterizer.rasterize(zeggs_dataset.posLckHips()[comp2_idx]-[0,-100,0], #Subtracting 100 to keep it in center
+                                 zeggs_dataset.parents, 
+                                 frame_skip=frame_skip, 
+                                 grid_step=grid_step, 
+                                 weigth=weigth,
+                                 skipfirstjoints=1)
+    comp2.clipped = np.clip(comp2.grid, 0, 1).astype(float)
+
+    # Setting 0 values to nan to not take part on cmap
+    #z_grid_teste.clipped[z_grid_teste.clipped == 0] = np.nan
+
+    fig, axs = plt.subplots(ncols=3, nrows=2, figsize=(12,12))
+
+    axs[1,0].remove()
+
+    neg = axs[0,0].imshow(neutral.clipped, cmap='binary', interpolation='none')
+
+    neg = axs[0,1].imshow(comp1.clipped, cmap='binary', interpolation='none')#, vmin=0,vmax=4)
+    #ax.imshow(z_grid_teste.clipped, cmap=white_at_min, interpolation='nearest')
+    #fig.colorbar(neg, ax=ax, anchor=(0, 0.3), shrink=0.7)
+
+    neg = axs[0,2].imshow(comp2.clipped, cmap='binary', interpolation='none')
+
+    comp1.clipped[np.logical_and(neutral.clipped==0,
+                                 comp1.clipped==0
+                                 )]=np.nan
+
+    neg = axs[1,1].imshow(neutral.clipped-comp1.clipped+1, cmap='Blues', interpolation='none', vmin=-1)
+
+    comp2.clipped[np.logical_and(neutral.clipped==0,
+                                 comp2.clipped==0
+                                 )]=np.nan
+
+    neg = axs[1,2].imshow(neutral.clipped-comp2.clipped+1, cmap='Blues', interpolation='none', vmin=-1)
+
+    for i in range(2):
+        for j in range(3):
+            axs[i,j].tick_params(
+                    axis='both',       # changes apply to the x-axis
+                    which='both',      # both major and minor ticks are affected
+                    bottom=False,      # ticks along the bottom edge are off
+                    left=False,
+                    top=False,         # ticks along the top edge are off
+                    labelbottom=False,
+                    labelleft=False)   # labels along the bottom edge are off
+            
+            
+    axs[0,0].set_xlabel('Neutral')
+    axs[0,1].set_xlabel('Sad')
+    axs[0,2].set_xlabel('Happy')
+    axs[1,1].set_xlabel('Neutral - Sad')
+    axs[1,2].set_xlabel('Neutral - Happy')
+
+    plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+    fig.tight_layout()
+    return fig
