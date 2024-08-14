@@ -33,9 +33,9 @@ def plot_HL_versus_dice_fgd(hl_ratings,
         ax1.annotate(entry, (aligned_fgds[i]+x-10, hl_ratings[i+1]+y-1.5), fontsize=18)
     #ax.tick_params(axis='y', labelcolor=color)
     # Linear regression for the FGD
-    coef = np.polyfit(hl_ratings[1:],aligned_fgds,1)
+    coef = np.polyfit(aligned_fgds, hl_ratings[1:],1)
     poly1d_fn = np.poly1d(coef) 
-    ax1.plot(poly1d_fn(hl_ratings[1:]), hl_ratings[1:], '--k', color=color)
+    ax1.plot(np.sort(aligned_fgds), poly1d_fn(np.sort(aligned_fgds)), '--k', color=color)
     # Hardcoded limits to improve visualization
     ax1.set_xlim(0, 90)
     ax1.set_ylim(0, 100)
@@ -67,9 +67,9 @@ def plot_HL_versus_dice_fgd(hl_ratings,
         ax2.annotate(entry, (aligned_dice[i+1]+x+0.005, hl_ratings[i+1]+y-1.5), fontsize=20)
 
     # Linear regression for the Dice Score
-    coef = np.polyfit(hl_ratings[1:],aligned_dice[1:],1)
+    coef = np.polyfit(aligned_dice[1:],hl_ratings[1:],1)
     poly1d_fn = np.poly1d(coef) 
-    ax2.plot(poly1d_fn(hl_ratings[1:]), hl_ratings[1:], '--k', color=color)
+    ax2.plot(np.sort(aligned_dice[1:]), poly1d_fn(np.sort(aligned_dice[1:])), '--k', color=color)
     # Hardcoded limits to improve visualization
     ax2.set_xlim(0.6, 0.8)
     ax2.set_xlabel('Dice Score')
