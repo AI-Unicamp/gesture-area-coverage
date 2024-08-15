@@ -10,11 +10,15 @@ from torch.utils.data import DataLoader
 from scipy.stats import spearmanr
 from scipy.stats import kendalltau
 import argparse
+from tqdm import tqdm
+import sys
 
 GENEA_ENTRIES   = ['BD', 'BM', 'NA', 'SA', 'SB', 'SC', 'SD', 'SE', 'SF', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL']
 ALIGNED_ENTRIES = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', 'SI', 'SK', 'SA', 'SB', 'SC']
 HL_MEDIAN       = [  71,   69,   65,   51,   51,   50,   46,   46,   45,   43,   40,   37,   30,   24,    9]
 HL_MEAN         = [68.4, 65.6, 63.6, 51.8, 50.6, 50.9, 45.1, 45.3, 44.7, 42.9, 41.4, 40.2, 32.0, 27.4, 11.6]
+APP_MAS         = [0.83, 0.34, 0.20, 0.28, 0.12, 0.19, 0.09, 0.14, 0.19, 0.22, 0.13, 0.19, 0.10, 0.11,-0.05]
+APP_PREF_MATCH  = [76.6, 61.5, 56.4, 61.3, 55.2, 58.6, 52.9, 56.1, 57.6, 60.0, 55.4, 56.7, 54.8, 56.2, 44.9]
 
 def load_data_genea2023(step,
                         window,
@@ -34,7 +38,6 @@ def load_data_genea2023(step,
 
     # Load GENEA entries
     print('Loading GENEA entries')
-    genea_entries_path = './dataset/SubmittedGenea2023/BVH'
     genea_entries_datasets = []
     genea_entries_loaders = {}
     for entry in GENEA_ENTRIES:
@@ -179,6 +182,109 @@ def compute_gac_genea2023(genea_entries_datasets,
 
     return aligned_setstats
 
+def mismatch_gac_genea2023(genea_entries_datasets,
+                           frame_skip = 1,
+                           grid_step = 0.5,
+                           weigth = 1,
+                           gac_save_path='./GAC/output',):
+    """
+    Same as compute_gac_genea2023, but it computes the GAC metrics for the mismatched takes of the GENEA dataset.
+    """
+    NA = genea_entries_datasets[2]
+
+    # Creating the dice list for each dataset
+    for entry_dataset in genea_entries_datasets:
+        entry_dataset.mismatch_setstats = []
+
+    NA_grids = []
+    print('Computing NA GAC...')
+    for take in tqdm(range(len(NA.pos))):
+        # Rasterize NA
+        NA_grids.append(rasterizer.rasterize(NA.posLckHips()[take],
+                                      NA.parents,
+                                      frame_skip=frame_skip,
+                                      grid_step=grid_step,
+                                      weigth=weigth))
+        # Clip the grid to 0-1
+        NA_grids[-1].clipped = np.clip(NA_grids[-1].grid, 0, 1)
+
+    # For each entry, rasterize the poses and compute the dice score
+    print('Computing GAC for each take and entry...')
+    for take in tqdm(range(len(NA.pos))):
+        for entry_dataset in genea_entries_datasets:
+            if entry_dataset.name != 'NA':
+                grid = rasterizer.rasterize(entry_dataset.posLckHips()[take],
+                                            entry_dataset.parents,
+                                            frame_skip=frame_skip,
+                                            grid_step=grid_step,
+                                            weigth=weigth)
+                grid.clipped = np.clip(grid.grid, 0, 1)
+                 # Select a random take from NA except the current take
+                i = take
+                while i == take:
+                    i = np.random.randint(0,len(NA.pos))
+                stats = SetStats(NA_grids[i].clipped, grid.clipped)
+                entry_dataset.mismatch_setstats.append(stats)
+                print(f'{entry_dataset.name} dice: {stats[0]:.2f}')
+
+    # Genea entries aligned with human-likeness ratings
+    aligned_setstats = [entry.mismatch_setstats for entry in genea_entries_datasets]
+    aligned_setstats = [aligned_setstats[GENEA_ENTRIES.index(entry)] for entry in ALIGNED_ENTRIES]
+    aligned_dice     = [np.mean([entry[0] for entry in setstats]) for setstats in aligned_setstats]
+    
+    # Save as csv
+    csv = f'entry,dice\n'
+    for i, entry in enumerate(ALIGNED_ENTRIES):
+        csv += f'{entry},{aligned_dice[i]}\n'
+    # If the file already exists, append the new data
+    if os.path.exists(os.path.join(gac_save_path, f'genea_mismatch_dice.csv')):
+        with open(os.path.join(gac_save_path, f'genea_mismatch_dice.csv'), 'r') as f:
+            csv = f.read() + '\n' + csv
+    with open(os.path.join(gac_save_path, f'genea_mismatch_dice.csv'), 'w') as f:
+        f.write(csv)
+
+def length_gac_genea2023(genea_entries_datasets,
+                         frame_skip = 1,
+                         grid_step = 0.5,
+                         weigth = 1,
+                         gac_save_path='./GAC/output',):
+    NA = genea_entries_datasets[2]
+    SG = genea_entries_datasets[9]
+
+
+    for frame in tqdm(range(1800)):
+        SG.frame_setstats = []
+        for take in range(len(NA.pos)):
+            # Rasterize NA
+            nagrid = rasterizer.rasterize(NA.posLckHips()[take][:frame],
+                                        NA.parents,
+                                        frame_skip=frame_skip,
+                                        grid_step=grid_step,
+                                        weigth=weigth)
+            # Clip the grid to 0-1
+            nagrid.clipped = np.clip(nagrid.grid, 0, 1)
+            
+            # For each entry, rasterize the poses and compute the dice score
+            grid = rasterizer.rasterize(SG.posLckHips()[take][:frame], SG.parents, frame_skip=frame_skip, grid_step=grid_step, weigth=weigth)
+            grid.clipped = np.clip(grid.grid, 0, 1)
+            stats = SetStats(nagrid.clipped, grid.clipped)
+            SG.frame_setstats.append(stats)
+
+        # Genea entries aligned with human-likeness ratings
+        dice     = np.mean([entry[0] for entry in SG.frame_setstats])
+        dice_std = np.std([entry[0] for entry in SG.frame_setstats])
+
+        # Save as csv
+        csv = f'frames,dice,dice_std\n'
+        csv += f'{frame},{dice},{dice_std}\n'
+        # If the file already exists, append the new data
+        if os.path.exists(os.path.join(gac_save_path, f'genea_length_dice.csv')):
+            with open(os.path.join(gac_save_path, f'genea_length_dice.csv'), 'r') as f:
+                csv = f.read() + '\n' + csv
+        with open(os.path.join(gac_save_path, f'genea_length_dice.csv'), 'w') as f:
+            f.write(csv)
+
+
 def compute_gac_zeggs(zeggs_dataset,
                       styles,
                       frame_skip = 1,
@@ -276,9 +382,6 @@ def report_gac_fgd(aligned_setstats,
         os.makedirs('./figures')
     fig.savefig('./figures/fgd_vs_dice_mean.png')
 
-    print(aligned_fgds_NA)
-    print(aligned_dice)
-
     # Spearman correlation between HL Median vs FGD and Dice
     print('Spearman correlation between FGD and HL Median:')
     compute_correlation(spearmanr, HL_MEDIAN[1:], aligned_fgds_NA)
@@ -332,7 +435,9 @@ if __name__ == '__main__':
     # This script will compute the FGD and GAC metrics for the GENEA2023 and ZEGGS datasets.
     # Should take about 3 hours to run.
     parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--load', action='store_true', help='Includ this argument to load the precomputed FGD and GAC metrics.')
+    parser.add_argument('-l', '--load', action='store_true', help='Include this argument to load the precomputed FGD and GAC metrics.')
+    parser.add_argument('-m', '--mismatch', action='store_true', help='Only perform gac mismatch test.')
+    parser.add_argument('-f', '--frame', action='store_true', help='Only perform gac frame length test.')
     args = parser.parse_args()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -341,6 +446,15 @@ if __name__ == '__main__':
     batch_size = 64
 
     genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data_genea2023(step, window, batch_size)
+
+    if args.mismatch:
+        mismatch_gac_genea2023(genea_entries_datasets)
+        sys.exit(0)
+
+    if args.frame:
+        length_gac_genea2023(genea_entries_datasets)
+        sys.exit(0)
+
     if args.load:
         aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
         aligned_setstats = load_genea_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
