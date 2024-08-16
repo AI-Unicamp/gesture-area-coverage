@@ -174,6 +174,13 @@ def compute_gac_genea2023(genea_entries_datasets,
     for i, entry in enumerate(ALIGNED_ENTRIES):
         for j, stats in enumerate(aligned_setstats[i]):
             csv += f'{entry},{j},{stats[0]},{stats[1]},{stats[2]},{stats[3]},{stats[4]},{stats[5]},{stats[6]},{stats[7]}\n'
+
+    csv += '\nEntry Average\n'
+    csv += f'entry,dice,dice_std,fpfn_ratio,fpfn_ratio_std,log_ratio,log_ratio_std,s1,s1_std,s2,s2_std,tp,tp_std,fp,fp_std,fn,fn_std\n'
+    for i, entry in enumerate(ALIGNED_ENTRIES):
+        setstats = aligned_setstats[i]
+        csv += f'{entry},{np.mean([entry[0] for entry in setstats])},{np.std([entry[0] for entry in setstats])},{np.mean([entry[1] for entry in setstats])},{np.std([entry[1] for entry in setstats])},{np.mean([entry[2] for entry in setstats])},{np.std([entry[2] for entry in setstats])},{np.mean([entry[3] for entry in setstats])},{np.std([entry[3] for entry in setstats])},{np.mean([entry[4] for entry in setstats])},{np.std([entry[4] for entry in setstats])},{np.mean([entry[5] for entry in setstats])},{np.std([entry[5] for entry in setstats])},{np.mean([entry[6] for entry in setstats])},{np.std([entry[6] for entry in setstats])},{np.mean([entry[7] for entry in setstats])},{np.std([entry[7] for entry in setstats])}\n'
+    
     with open(os.path.join(gac_save_path, 'genea_setstats.csv'), 'w') as f:
         f.write(csv)
 
@@ -332,7 +339,7 @@ if __name__ == '__main__':
     # This script will compute the FGD and GAC metrics for the GENEA2023 and ZEGGS datasets.
     # Should take about 3 hours to run.
     parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--load', action='store_true', help='Includ this argument to load the precomputed FGD and GAC metrics.')
+    parser.add_argument('-l', '--load', action='store_true', help='Include this argument to load the precomputed FGD and GAC metrics.')
     args = parser.parse_args()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
