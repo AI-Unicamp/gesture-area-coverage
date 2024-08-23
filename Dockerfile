@@ -23,3 +23,4 @@ RUN conda install numpy
 RUN conda install scipy scikit-learn
 RUN conda install notebook=6.5
 RUN conda install matplotlib=3.1
+RUN pip install tabulate

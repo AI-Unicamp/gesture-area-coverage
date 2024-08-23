@@ -10,10 +10,10 @@ def plot_HL_versus_dice_fgd(hl_ratings,
 
     # FGD
     color = 'tab:blue'
-    ax1.scatter(aligned_fgds, hl_ratings[1:], label='FGD', color=color, marker='o', s=80)
+    ax1.scatter(aligned_fgds, hl_ratings, label='FGD', color=color, marker='o', s=80)
 
     # Hardcoded positions for the annotations to avoid overlapping
-    for i, entry in enumerate(aligned_entries[1:]):
+    for i, entry in enumerate(aligned_entries):
         x,y = [
             [0,0],      #SG
             [12,0],     #SF
@@ -30,10 +30,10 @@ def plot_HL_versus_dice_fgd(hl_ratings,
             [0,0],      #SB
             [1,0.2],    #SC
         ][i]
-        ax1.annotate(entry, (aligned_fgds[i]+x-10, hl_ratings[i+1]+y-1.5), fontsize=18)
+        ax1.annotate(entry, (aligned_fgds[i]+x-10, hl_ratings[i]+y-1.5), fontsize=18)
     #ax.tick_params(axis='y', labelcolor=color)
     # Linear regression for the FGD
-    coef = np.polyfit(aligned_fgds, hl_ratings[1:],1)
+    coef = np.polyfit(aligned_fgds, hl_ratings,1)
     poly1d_fn = np.poly1d(coef) 
     ax1.plot(np.sort(aligned_fgds), poly1d_fn(np.sort(aligned_fgds)), '--k', color=color)
     # Hardcoded limits to improve visualization
@@ -44,10 +44,10 @@ def plot_HL_versus_dice_fgd(hl_ratings,
 
     # Dice Score
     color = 'tab:orange'
-    ax2.scatter(aligned_dice[1:], hl_ratings[1:], label='Dice', color=color, marker='o', s=80)
+    ax2.scatter(aligned_dice, hl_ratings, label='Dice', color=color, marker='o', s=80)
 
     # Hardcoded positions for the annotations to avoid overlapping
-    for i, entry in enumerate(aligned_entries[1:]):
+    for i, entry in enumerate(aligned_entries):
         x,y = [
             [0,0],          #SG
             [0,0],          #SF
@@ -64,12 +64,12 @@ def plot_HL_versus_dice_fgd(hl_ratings,
             [0,0],          #SB
             [0,0],          #SC
         ][i]
-        ax2.annotate(entry, (aligned_dice[i+1]+x+0.005, hl_ratings[i+1]+y-1.5), fontsize=20)
+        ax2.annotate(entry, (aligned_dice[i]+x+0.005, hl_ratings[i]+y-1.5), fontsize=20)
 
     # Linear regression for the Dice Score
-    coef = np.polyfit(aligned_dice[1:],hl_ratings[1:],1)
+    coef = np.polyfit(aligned_dice,hl_ratings,1)
     poly1d_fn = np.poly1d(coef) 
-    ax2.plot(np.sort(aligned_dice[1:]), poly1d_fn(np.sort(aligned_dice[1:])), '--k', color=color)
+    ax2.plot(np.sort(aligned_dice), poly1d_fn(np.sort(aligned_dice)), '--k', color=color)
     # Hardcoded limits to improve visualization
     ax2.set_xlim(0.6, 0.8)
     ax2.set_xlabel('Dice Score')

@@ -10,15 +10,14 @@ from torch.utils.data import DataLoader
 from scipy.stats import spearmanr
 from scipy.stats import kendalltau
 import argparse
+from tabulate import tabulate
+from tqdm import tqdm
 
-GENEA_ENTRIES   = ['BD', 'BM', 'NA', 'SA', 'SB', 'SC', 'SD', 'SE', 'SF', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL']
-ALIGNED_ENTRIES = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', 'SI', 'SK', 'SA', 'SB', 'SC']
-HL_MEDIAN       = [  71,   69,   65,   51,   51,   50,   46,   46,   45,   43,   40,   37,   30,   24,    9]
-HL_MEAN         = [68.4, 65.6, 63.6, 51.8, 50.6, 50.9, 45.1, 45.3, 44.7, 42.9, 41.4, 40.2, 32.0, 27.4, 11.6]
 
-def load_data_genea2023(step,
-                        window,
-                        batch_size,
+def load_data_genea2023(genea_entries,
+                        step=10,
+                        window=120,
+                        batch_size=64,
                         genea_trn_path='./dataset/Genea2023/trn/main-agent/bvh',
                         genea_entries_path='./dataset/SubmittedGenea2023/BVH',
                         ):
@@ -37,8 +36,7 @@ def load_data_genea2023(step,
     genea_entries_path = './dataset/SubmittedGenea2023/BVH'
     genea_entries_datasets = []
     genea_entries_loaders = {}
-    for entry in GENEA_ENTRIES:
-        print(f'Loading {entry}...')
+    for entry in tqdm(genea_entries):
         path = os.path.join(genea_entries_path, entry)
         genea_entries_datasets.append(DatasetBVHLoader(name=entry,
                                                         path=path,
@@ -50,10 +48,10 @@ def load_data_genea2023(step,
                                                         shuffle=False)})
     return genea_trn_loader, genea_entries_loaders, genea_entries_datasets
 
-def load_data_zeggs(step,
-                    window,
-                    fps,
+def load_data_zeggs(fps,
                     njoints,
+                    step = 10,
+                    window = 120,
                     zeggs_path='./dataset/ZEGGS/'):
     zeggs_dataset = DatasetBVHLoader(name='zeggs', 
                                      path=zeggs_path, 
@@ -74,8 +72,11 @@ def load_data_zeggs(step,
     return zeggs_dataset, styles
 
 def compute_fgd(genea_trn_loader,
+                genea_entries,
                 genea_entries_loaders,
+                device,
                 fgd_path='./FGD/output/genea_model_checkpoint_120_246.bin',
+                window=120,
                 ):
     # Load FGD model
     evaluator = EmbeddingSpaceEvaluator(fgd_path, 
@@ -89,8 +90,8 @@ def compute_fgd(genea_trn_loader,
 
     # Compute FGDs of every entry againts the GENEA train dataset and the NA entry
     fgds = {}
-    for loader in genea_entries_loaders:
-        print(f'Computing FGD for {loader}...')
+    print('Computing entries FGD')
+    for loader in tqdm(genea_entries_loaders):
         if loader != 'NA':
             feat, labels = evaluator.run_samples(evaluator.net, genea_entries_loaders[loader], device)
             trn_FGD = evaluator.frechet_distance(genea_trn_feat, feat)
@@ -101,15 +102,10 @@ def compute_fgd(genea_trn_loader,
     NA_trn_FGD = evaluator.frechet_distance(genea_trn_feat, genea_NA_feat)
 
     # Genea entries aligned with human-likeness ratings
-    aligned_fgds_trn = [fgds[loader][0] for loader in ALIGNED_ENTRIES[1:]]
-    aligned_fgds_NA  = [fgds[loader][1] for loader in ALIGNED_ENTRIES[1:]]
+    aligned_fgds_trn = [fgds[entry][0] if entry != 'NA' else NA_trn_FGD for entry in genea_entries ]
+    aligned_fgds_NA  = [fgds[entry][1] if entry != 'NA' else 0 for entry in genea_entries]
     np.save(os.path.join(os.path.dirname(fgd_path), 'aligned_fgds_trn.npy'), aligned_fgds_trn, allow_pickle=True)
     np.save(os.path.join(os.path.dirname(fgd_path), 'aligned_fgds_NA.npy' ), aligned_fgds_NA , allow_pickle=True)
-
-    # Print
-    print(f'FGD (NA, TRN): {NA_trn_FGD:.2f}. HL: {HL_MEDIAN[0]}')
-    for i, entry in enumerate(ALIGNED_ENTRIES[1:]):
-        print(f'FGD (NA, {entry}): {aligned_fgds_NA[i]:.2f}. FGD (TRN, {entry}): {aligned_fgds_trn[i]:.2f}. HL: {HL_MEDIAN[i+1]}')
 
     return aligned_fgds_trn, aligned_fgds_NA
 
@@ -131,16 +127,15 @@ def compute_gac_genea2023(genea_entries_datasets,
     weigth: float
         Weigth of each pixel occurance. Default is 1.
     """
-    NA = genea_entries_datasets[2]
+    # Selecting Natural Motion entry and creating the GAC-based stats list for each dataset
+    for entry in genea_entries_datasets:
+        if entry.name == 'NA' : NA = entry
+        entry.setstats = []
 
-    # Creating the dice list for each dataset
-    for entry_dataset in genea_entries_datasets:
-        entry_dataset.setstats = []
-
+    print('Computing each take\'s GAC for every entry')
     # For each take of the Natural Motion entry/set (ground truth)
     for take in range(len(NA.pos)):
         print(f'Take {take}:')
-
         # Some takes have different lengths, so we take the minimum length
         cut = np.min([entry_dataset.pos[take].shape[0] for entry_dataset in genea_entries_datasets]+[NA.pos[take].shape[0]])
 
@@ -154,32 +149,30 @@ def compute_gac_genea2023(genea_entries_datasets,
         nagrid.clipped = np.clip(nagrid.grid, 0, 1)
         
         # For each entry, rasterize the poses and compute the dice score
-        for entry_dataset in genea_entries_datasets:
+        for entry_dataset in tqdm(genea_entries_datasets):
             if entry_dataset.name != 'NA':
                 grid = rasterizer.rasterize(entry_dataset.posLckHips()[take][:cut], entry_dataset.parents, frame_skip=frame_skip, grid_step=grid_step, weigth=weigth)
                 grid.clipped = np.clip(grid.grid, 0, 1)
                 stats = SetStats(nagrid.clipped, grid.clipped)
                 entry_dataset.setstats.append(stats)
-                print(f'{entry_dataset.name} dice: {stats[0]:.2f}')
 
     # Genea entries aligned with human-likeness ratings
     aligned_setstats = [entry.setstats for entry in genea_entries_datasets]
-    aligned_setstats = [aligned_setstats[GENEA_ENTRIES.index(entry)] for entry in ALIGNED_ENTRIES]
     if not os.path.exists(os.path.dirname(gac_save_path)):
         os.makedirs(os.path.dirname(gac_save_path))
     np.save(os.path.join(gac_save_path, 'genea_setstats.npy'), aligned_setstats, allow_pickle=True)
 
     # Save as csv
     csv = f'entry,take,dice,fpfn_ratio,log_ratio,s1,s2,tp,fp,fn\n'
-    for i, entry in enumerate(ALIGNED_ENTRIES):
+    for i, entry in enumerate(genea_entries_datasets):
         for j, stats in enumerate(aligned_setstats[i]):
-            csv += f'{entry},{j},{stats[0]},{stats[1]},{stats[2]},{stats[3]},{stats[4]},{stats[5]},{stats[6]},{stats[7]}\n'
+            csv += f'{entry.name},{j},{stats[0]},{stats[1]},{stats[2]},{stats[3]},{stats[4]},{stats[5]},{stats[6]},{stats[7]}\n'
 
     csv += '\nEntry Average\n'
     csv += f'entry,dice,dice_std,fpfn_ratio,fpfn_ratio_std,log_ratio,log_ratio_std,s1,s1_std,s2,s2_std,tp,tp_std,fp,fp_std,fn,fn_std\n'
-    for i, entry in enumerate(ALIGNED_ENTRIES):
-        setstats = aligned_setstats[i]
-        csv += f'{entry},{np.mean([entry[0] for entry in setstats])},{np.std([entry[0] for entry in setstats])},{np.mean([entry[1] for entry in setstats])},{np.std([entry[1] for entry in setstats])},{np.mean([entry[2] for entry in setstats])},{np.std([entry[2] for entry in setstats])},{np.mean([entry[3] for entry in setstats])},{np.std([entry[3] for entry in setstats])},{np.mean([entry[4] for entry in setstats])},{np.std([entry[4] for entry in setstats])},{np.mean([entry[5] for entry in setstats])},{np.std([entry[5] for entry in setstats])},{np.mean([entry[6] for entry in setstats])},{np.std([entry[6] for entry in setstats])},{np.mean([entry[7] for entry in setstats])},{np.std([entry[7] for entry in setstats])}\n'
+    for i, entry in enumerate(genea_entries_datasets):
+        setstats = entry.setstats
+        csv += f'{entry.name},{np.mean([entry[0] for entry in setstats])},{np.std([entry[0] for entry in setstats])},{np.mean([entry[1] for entry in setstats])},{np.std([entry[1] for entry in setstats])},{np.mean([entry[2] for entry in setstats])},{np.std([entry[2] for entry in setstats])},{np.mean([entry[3] for entry in setstats])},{np.std([entry[3] for entry in setstats])},{np.mean([entry[4] for entry in setstats])},{np.std([entry[4] for entry in setstats])},{np.mean([entry[5] for entry in setstats])},{np.std([entry[5] for entry in setstats])},{np.mean([entry[6] for entry in setstats])},{np.std([entry[6] for entry in setstats])},{np.mean([entry[7] for entry in setstats])},{np.std([entry[7] for entry in setstats])}\n'
     
     with open(os.path.join(gac_save_path, 'genea_setstats.csv'), 'w') as f:
         f.write(csv)
@@ -263,52 +256,35 @@ def compute_gac_zeggs(zeggs_dataset,
 
 def compute_correlation(func, arr1, arr2):
     rho, p_value = func(arr1, arr2)
-    print(f'Correlation: {rho:.2f}. p-value: {p_value:.2f}')
+    return rho, p_value
 
-def report_gac_fgd(aligned_setstats,
-                   aligned_fgds_trn,
-                   aligned_fgds_NA,
+def report_gac_fgd(entries,
+                   setstats,
+                   fgds,
+                   ratings,
+                   plot_func=None,
+                   plot_name='./figures/output.png'
                    ):
-    aligned_dice = [np.mean([entry[0] for entry in setstats]) for setstats in aligned_setstats]
+    dice = [np.mean([entry[0] for entry in stats]) for stats in setstats]
 
-    # HL Median vs FGD and Dice
-    fig = plots.plot_HL_versus_dice_fgd(HL_MEDIAN, aligned_fgds_NA, aligned_dice, ALIGNED_ENTRIES)
-    if not os.path.exists('./figures'):
-        os.makedirs('./figures')
-    fig.savefig('./figures/fgd_vs_dice.png')
-
-    # HL Mean vs FGD and Dice
-    fig = plots.plot_HL_versus_dice_fgd(HL_MEAN, aligned_fgds_NA, aligned_dice, ALIGNED_ENTRIES)
-    if not os.path.exists('./figures'):
-        os.makedirs('./figures')
-    fig.savefig('./figures/fgd_vs_dice_mean.png')
-
-    print(aligned_fgds_NA)
-    print(aligned_dice)
+    # Ratings vs FGD and Dice
+    if plot_func:
+        #fig = plots.plot_HL_versus_dice_fgd(ratings, fgds, dice, entries)
+        fig = plot_func(ratings, fgds, dice, entries)
+        os.makedirs(os.path.dirname(plot_name), exist_ok=True)
+        fig.savefig(plot_name)
 
     # Spearman correlation between HL Median vs FGD and Dice
-    print('Spearman correlation between FGD and HL Median:')
-    compute_correlation(spearmanr, HL_MEDIAN[1:], aligned_fgds_NA)
-    print('Spearman correlation between Dice and HL Median:')
-    compute_correlation(spearmanr, HL_MEDIAN[1:], aligned_dice[1:])
+    r1, p1 = compute_correlation(spearmanr, ratings, fgds)
+    r2, p2 = compute_correlation(spearmanr, ratings, dice)
+    table = [["Spearman (p-value)", f'{r1:.2f} ({p1:.2f})', f'{r2:.2f} ({p2:.2f})']]
 
     # Kendall correlation between HL Median vs FGD and Dice
-    print('Kendall\'s tau  correlation between FGD and HL Median:')
-    compute_correlation(kendalltau, HL_MEDIAN[1:], aligned_fgds_NA)
-    print('Kendall\'s tau correlation between Dice and HL Median:')
-    compute_correlation(kendalltau, HL_MEDIAN[1:], aligned_dice[1:])
+    r1, p1 = compute_correlation(kendalltau, ratings, fgds)
+    r2, p2 = compute_correlation(kendalltau, ratings, dice)
+    table.append(["Kendall\'s tau (p-value)", f'{r1:.2f} ({p1:.2f})', f'{r2:.2f} ({p2:.2f})'])
     
-    # Spearman correlation between HL Mean vs FGD and Dice
-    print('Spearman correlation between FGD and HL Mean:')
-    compute_correlation(spearmanr, HL_MEAN[1:], aligned_fgds_NA)
-    print('Spearman correlation between Dice and HL Mean:')
-    compute_correlation(spearmanr, HL_MEAN[1:], aligned_dice[1:])
-
-    # Kendall correlation between HL Mean vs FGD and Dice
-    print('Kendall\'s tau correlation between FGD and HL Mean:')
-    compute_correlation(kendalltau, HL_MEAN[1:], aligned_fgds_NA)
-    print('Kendall\'s tau correlation between Dice and HL Mean:')
-    compute_correlation(kendalltau, HL_MEAN[1:], aligned_dice[1:])
+    return table
 
 def load_fgd(fgd_output_path):
     aligned_fgds_trn = np.load(os.path.join(fgd_output_path, 'aligned_fgds_trn.npy'), allow_pickle=True)
@@ -319,13 +295,13 @@ def load_genea_gac(gac_output_path,
                    genea_entries_datasets = None):
     aligned_setstats = np.load(gac_output_path, allow_pickle=True)
     if genea_entries_datasets is not None:
-        for i, entry in enumerate(ALIGNED_ENTRIES):
-            genea_entries_datasets[GENEA_ENTRIES.index(entry)].setstats = aligned_setstats[i]
+        for i, dataset in enumerate(genea_entries_datasets):
+            dataset.setstats = aligned_setstats[i]
     return aligned_setstats
 
 def load_zeggs_gac(gac_output_path):
     zeggs_setstats = np.load(gac_output_path, allow_pickle=True)
-    return zeggs_setstats
+    return zeggs_setstats.item()
 
 def report_zeggs_gac(zeggs_dataset):
     # Plot
@@ -343,21 +319,30 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    step = 10
-    window = 120
-    batch_size = 64
 
-    genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data_genea2023(step, window, batch_size)
+    # GENEA 2023 entries aligned with human-likeness median ratings
+    genea23_aligned_entries = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', 'SI', 'SK', 'SA', 'SB', 'SC']
+    hl_median               = [  71,   69,   65,   51,   51,   50,   46,   46,   45,   43,   40,   37,   30,   24,    9]
+    hl_mean                 = [68.4, 65.6, 63.6, 51.8, 50.6, 50.9, 45.1, 45.3, 44.7, 42.9, 41.4, 40.2, 32.0, 27.4, 11.6]
+
+    genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data_genea2023(genea23_aligned_entries)
     if args.load:
         aligned_fgds_trn, aligned_fgds_NA = load_fgd('./FGD/output')
         aligned_setstats = load_genea_gac('./GAC/output/genea_setstats.npy', genea_entries_datasets)
     else: # Set to True to recompute the FGD and GAC metrics
-        aligned_fgds_trn, aligned_fgds_NA = compute_fgd(genea_trn_loader, genea_entries_loaders)
+        aligned_fgds_trn, aligned_fgds_NA = compute_fgd(genea_trn_loader, genea23_aligned_entries, genea_entries_loaders, device)
         aligned_setstats = compute_gac_genea2023(genea_entries_datasets)
         
-    report_gac_fgd(aligned_setstats, aligned_fgds_trn, aligned_fgds_NA)
+    # Compute correlation between HL Median and FGD and Dice. Print table with results.
+    table = report_gac_fgd(genea23_aligned_entries[1:], aligned_setstats[1:], aligned_fgds_NA[1:], hl_median[1:], plots.plot_HL_versus_dice_fgd, './figures/fgd_vs_dice.png')
+    header = ["Correlation", "FGD vs Hum. Median", "Dice vs Hum. Median"]
+    print(tabulate(table, header, tablefmt="github"))
+    # Compute correlation between HL Mean and FGD and Dice. Print table with results.
+    table = report_gac_fgd(genea23_aligned_entries[1:], aligned_setstats[1:], aligned_fgds_NA[1:], hl_mean[1:]  , plots.plot_HL_versus_dice_fgd, './figures/fgd_vs_dice_mean.png')
+    header = ["Correlation", "FGD vs Hum. Mean", "Dice vs Hum. Mean"]
+    print(tabulate(table, header, tablefmt="github"))
 
-    zeggs_dataset, styles = load_data_zeggs(step, window, fps=60, njoints=75)
+    zeggs_dataset, styles = load_data_zeggs(fps=60, njoints=75)
     if args.load:
         zeggs_setstats = load_zeggs_gac('./GAC/output/zeggs_setstats.npy')
     else:
