@@ -10,15 +10,12 @@ ARG PATH="/root/miniconda3/bin:${PATH}"
 RUN apt-get update
 RUN apt-get install -y wget git nano
 
-RUN conda --version
-
 WORKDIR /root
 
 RUN conda install tqdm -f
 RUN conda update conda
 RUN conda install pip
-RUN pip install bvhsdk
-RUN conda --version
+RUN pip install bvhsdk=0.2.1
 RUN conda install numpy
 RUN conda install scipy scikit-learn
 RUN conda install notebook=6.5

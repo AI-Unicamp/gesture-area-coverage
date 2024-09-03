@@ -22,13 +22,7 @@ sample2 = bvhsdk.ReadFile('./dataset/bvh_sample/sample2.bvh')
 Compute the joint position for each file in the shape (frames, number of joints, 3):
 
 ```python
-def getJointPositions(anim):
-    joint_positions = []
-    for frame in range(anim.frames):
-        joint_positions.append([joint.getPosition(frame) for joint in anim.getlistofjoints()])
-    return np.array(joint_positions)
-
-pos1, pos2 = getJointPositions(sample1), getJointPositions(sample2)
+pos1, pos2 = sample1.getJointPositions(), sample2.getJointPositions()
 ```
 
 The Gesture Area Coverage is the union of the rasterized poses in a motion sequence. Rasterize both poses:
