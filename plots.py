@@ -159,3 +159,307 @@ def plot_zeggs_gac_comparison(zeggs_dataset,
     plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
     fig.tight_layout()
     return fig
+
+def plot_HL_versus_dice_fgd_g22(hl_ratings,
+                               aligned_fgds,
+                               aligned_dice,
+                               aligned_entries,
+                               ):
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(12,8))
+
+    # FGD
+    color = 'tab:blue'
+    ax1.scatter(aligned_fgds, hl_ratings, label='FGD', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0,0],          #FBT
+            [0,0],          #FSA
+            [-21,0],          #FSB
+            [0,0],          #FSC
+            [-22,0],          #FSD
+            [0,0],          #FSF
+            [0,+1],          #FSG
+            [0,-1],          #FSH
+            [-20,0],          #FSI
+        ][i]
+        ax1.annotate(entry, (aligned_fgds[i]+x+3, hl_ratings[i]+y-1.5), fontsize=18)
+    #ax.tick_params(axis='y', labelcolor=color)
+    # Linear regression for the FGD
+    coef = np.polyfit(aligned_fgds, hl_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax1.plot(np.sort(aligned_fgds), poly1d_fn(np.sort(aligned_fgds)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax1.set_xlim(0, 140)
+    ax1.set_ylim(0, 100)
+    ax1.set_xlabel('FGD')
+    ax1.set_ylabel('Human-likeness')
+
+    # Dice Score
+    color = 'tab:orange'
+    ax2.scatter(aligned_dice, hl_ratings, label='Dice', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0.03,4],          #FBT
+            [0,0],          #FSA
+            [0,0],          #FSB
+            [0,0],          #FSC
+            [0.03,4],          #FSD
+            [0.07,2],          #FSF
+            [0.07,-2],          #FSG
+            [0,0],          #FSH
+            [0.07,1],          #FSI
+        ][i]
+        ax2.annotate(entry, (aligned_dice[i]+x-0.06, hl_ratings[i]+y-1.5), fontsize=20)
+
+    # Linear regression for the Dice Score
+    coef = np.polyfit(aligned_dice,hl_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax2.plot(np.sort(aligned_dice), poly1d_fn(np.sort(aligned_dice)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax2.set_xlim(0.45, 0.85)
+    ax2.set_xlabel('Dice Score')
+    
+    return fig
+
+def plot_APP_versus_dice_fgd_g22(app_ratings,
+                            aligned_fgds,
+                            aligned_dice,
+                            aligned_entries,
+                            ):
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(12,8))
+
+    # FGD
+    color = 'tab:blue'
+    ax1.scatter(aligned_fgds, app_ratings, label='FGD', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [-8,-1],          #FBT
+            [-8,0.5],          #FSA
+            [-8,0.5],          #FSB
+            [2,-0.5],          #FSC
+            [-8,0.5],          #FSD
+            [-8,-1],          #FSF
+            [-12,-1],          #FSG
+            [-8,0.5],          #FSH
+            [1.8,-0.8],          #FSI
+        ][i]
+        ax1.annotate(entry, (aligned_fgds[i]+x, app_ratings[i]+y), fontsize=18)
+    #ax.tick_params(axis='y', labelcolor=color)
+    # Linear regression for the FGD
+    coef = np.polyfit(aligned_fgds, app_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax1.plot(np.sort(aligned_fgds), poly1d_fn(np.sort(aligned_fgds)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax1.set_xlim(0, 140)
+    ax1.set_ylim(45, 65)
+    ax1.set_xlabel('FGD')
+    ax1.set_ylabel('Appropriateness')
+
+    # Dice Score
+    color = 'tab:orange'
+    ax2.scatter(aligned_dice, app_ratings, label='Dice', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0,0.5],          #FBT
+            [0,0.5],          #FSA
+            [-0.03,0.5],          #FSB
+            [-0.02,-0.9],          #FSC
+            [0,-1],          #FSD
+            [0,-1],          #FSF
+            [-0.02,-1],          #FSG
+            [0,0.5],          #FSH
+            [0.03,-0.8],          #FSI
+        ][i]
+        ax2.annotate(entry, (aligned_dice[i]+x-0.03, app_ratings[i]+y), fontsize=20)
+
+    # Linear regression for the Dice Score
+    coef = np.polyfit(aligned_dice,app_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax2.plot(np.sort(aligned_dice), poly1d_fn(np.sort(aligned_dice)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax2.set_xlim(0.45, 0.85)
+    ax2.set_xlabel('Dice Score')
+    
+    return fig
+
+def plot_APP_versus_dice_fgd(app_ratings,
+                            aligned_fgds,
+                            aligned_dice,
+                            aligned_entries,
+                            ):
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(12,8))
+
+    # FGD
+    color = 'tab:blue'
+    ax1.scatter(aligned_fgds, app_ratings, label='FGD', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0,0],          #SG
+            [-2,-.7],          #SF
+            [0,0],     #SJ
+            [0,0],          #SL
+            [0,0],  #SE
+            [0,0],    #SH
+            [-2,-.7],    #BD
+            [0,0],     #SD
+            [0,0],          #BM
+            [-2,-.7],          #SI
+            [-3,0],          #SK
+            [-2,-.7],          #SA
+            [0,0],          #SB
+            [0,0],          #SC
+        ][i]
+        ax1.annotate(entry, (aligned_fgds[i]+x, app_ratings[i]+y), fontsize=18)
+    #ax.tick_params(axis='y', labelcolor=color)
+    # Linear regression for the FGD
+    coef = np.polyfit(aligned_fgds, app_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax1.plot(np.sort(aligned_fgds), poly1d_fn(np.sort(aligned_fgds)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax1.set_xlim(0, 90)
+    ax1.set_ylim(44, 64)
+    ax1.set_xlabel('FGD')
+    ax1.set_ylabel('Appropriateness')
+
+    # Dice Score
+    color = 'tab:orange'
+    ax2.scatter(aligned_dice, app_ratings, label='Dice', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0,0],          #SG
+            [0,0],          #SF
+            [0,0],     #SJ
+            [0,0],          #SL
+            [0,0],  #SE
+            [0,0],    #SH
+            [0,0],    #BD
+            [0,0],     #SD
+            [0,0],          #BM
+            [0,0],          #SI
+            [0,0],          #SK
+            [0,0],          #SA
+            [0,0],          #SB
+            [0,0],          #SC
+        ][i]
+        ax2.annotate(entry, (aligned_dice[i]+x, app_ratings[i]+y), fontsize=20)
+
+    # Linear regression for the Dice Score
+    coef = np.polyfit(aligned_dice,app_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax2.plot(np.sort(aligned_dice), poly1d_fn(np.sort(aligned_dice)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax2.set_xlim(0.6, 0.8)
+    ax2.set_xlabel('Dice Score')
+    
+    return fig
+
+def plot_APP_MAS_versus_dice_fgd(app_ratings,
+                            aligned_fgds,
+                            aligned_dice,
+                            aligned_entries,
+                            ):
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(12,8))
+
+    # FGD
+    color = 'tab:blue'
+    ax1.scatter(aligned_fgds, app_ratings, label='FGD', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0,-.01],          #SG
+            [-2,.01],          #SF
+            [0,0],     #SJ
+            [0,0],          #SL
+            [0,0],  #SE
+            [0,0],    #SH
+            [0,0],    #BD
+            [-5,-.02],     #SD
+            [0,0],          #BM
+            [-5,0],          #SI
+            [0,0],          #SK
+            [0,0],          #SA
+            [0,0],          #SB
+            [0,0],          #SC
+        ][i]
+        ax1.annotate(entry, (aligned_fgds[i]+x, app_ratings[i]+y), fontsize=18)
+    #ax.tick_params(axis='y', labelcolor=color)
+    # Linear regression for the FGD
+    coef = np.polyfit(aligned_fgds, app_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax1.plot(np.sort(aligned_fgds), poly1d_fn(np.sort(aligned_fgds)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax1.set_xlim(0, 90)
+    ax1.set_ylim(-0.05, 0.4)
+    ax1.set_xlabel('FGD')
+    ax1.set_ylabel('Appropriateness')
+
+    # Dice Score
+    color = 'tab:orange'
+    ax2.scatter(aligned_dice, app_ratings, label='Dice', color=color, marker='o', s=80)
+
+    # Hardcoded positions for the annotations to avoid overlapping
+    for i, entry in enumerate(aligned_entries):
+        x,y = [
+            [0,-.01],          #SG
+            [0,0],          #SF
+            [0,0],     #SJ
+            [0,0],          #SL
+            [0,0],  #SE
+            [0,0],    #SH
+            [0,0],    #BD
+            [0,0],     #SD
+            [0,0],          #BM
+            [0,0],          #SI
+            [0,0],          #SK
+            [0,0],          #SA
+            [0,0],          #SB
+            [0,0],          #SC
+        ][i]
+        ax2.annotate(entry, (aligned_dice[i]+x, app_ratings[i]+y), fontsize=20)
+
+    # Linear regression for the Dice Score
+    coef = np.polyfit(aligned_dice,app_ratings,1)
+    poly1d_fn = np.poly1d(coef) 
+    ax2.plot(np.sort(aligned_dice), poly1d_fn(np.sort(aligned_dice)), '--k', color=color)
+    # Hardcoded limits to improve visualization
+    ax2.set_xlim(0.6, 0.8)
+    ax2.set_xlabel('Dice Score')
+    
+    return fig
+
+def random_dices_boxplot(aligned_entries_names,
+                         entries_loaders,
+                         dice,
+                         sort_array=np.empty(0),
+                         size=(12,8),
+                        ):
+    fig, ax1 = plt.subplots(figsize=size)
+    if sort_array.shape[0] > 0:
+        # Get descending order align indeces
+        sorted_inds = np.asarray(sort_array).argsort()[::-1]
+    else:
+        sorted_inds = np.arange(len(dice))
+    # Get ordered names
+    aligned_entries = aligned_entries_names[sorted_inds]
+    
+    boxplot_dice = []
+    for i, entry in enumerate(aligned_entries):
+        boxplot_dice.append(entries_loaders[entry].dataset.dice)
+    x=ax1.boxplot(boxplot_dice)
+    x=ax1.scatter(np.arange(1,len(dice)+1), dice[sorted_inds], c='black', marker='x')
+    x=ax1.set_xticklabels(labels=aligned_entries_names[sorted_inds])
+    
+    return fig
