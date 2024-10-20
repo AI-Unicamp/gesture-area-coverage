@@ -1,6 +1,6 @@
 # Gesture Area Coverage
 
-Implementaion of the paper Gesture Area Coverage to Assess Gesture Expressiveness and Human-Likeness.
+Implementaion of the paper [Gesture Area Coverage to Assess Gesture Expressiveness and Human-Likeness](https://openreview.net/forum?id=Iso5lbByDI).
 
 Gesture Area Coverage (GAC) explicitly considers the spatial coverage of gestures within motion sequences and it is useful for evaluating the expressiveness of co-speech gestures.
 
