@@ -40,11 +40,11 @@ if __name__ == '__main__':
     print(tabulate(table, header, tablefmt="github"))
 
     # Compute correlation between Appropriateness and FGD and Dice. Print table with results.
-    table = report_gac_fgd(genea23_aligned_entries[1:], aligned_setstats[1:], aligned_fgds_NA[1:], app_mas[1:], plots.plot_APP_MAS_versus_dice_fgd, './figures/fgd_vs_dice_appropriateness_mas.png')
+    table = report_gac_fgd(genea23_aligned_entries[1:], aligned_setstats[1:], aligned_fgds_NA[1:], app_mas[1:], plots.plot_APP_MAS_versus_dice_fgd, './figures/fgd_vs_dice_appropriateness_mas.png', decimal=4)
     header = ["Correlation", "FGD vs App. MAS", "Dice vs App. MAS"]
     print(tabulate(table, header, tablefmt="github"))
 
     # Compute correlation between Appropriateness and FGD and Dice. Print table with results.
-    table = report_gac_fgd(genea23_aligned_entries[1:], aligned_setstats[1:], aligned_fgds_NA[1:], app_pref_match[1:], plots.plot_APP_versus_dice_fgd, './figures/fgd_vs_dice_appropriateness.png')
+    table = report_gac_fgd(genea23_aligned_entries[1:], aligned_setstats[1:], aligned_fgds_NA[1:], app_pref_match[1:], plots.plot_APP_versus_dice_fgd, './figures/fgd_vs_dice_appropriateness.png', decimal=3)
     header = ["Correlation", "FGD vs App. Pref.", "Dice vs App. Pref."]
     print(tabulate(table, header, tablefmt="github"))

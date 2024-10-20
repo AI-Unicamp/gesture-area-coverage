@@ -51,12 +51,22 @@ def get_gac_grids(genea_entries_datasets,
     """
     NA = genea_entries_datasets[2]
 
+    load_failed = False
     # Creating the dice list for each dataset
     for entry_dataset in genea_entries_datasets:
         entry_dataset.mismatch_setstats = []
         entry_dataset.grids = []
         entry_dataset.running_dice = []
         entry_dataset.dice = []
+
+        grid_path = os.path.join(gac_save_path, f'{entry_dataset.name}_grid.npy')
+        if os.path.exists(grid_path):
+            entry_dataset.grids = np.load(grid_path)
+            print(f'Loaded {entry_dataset.name} grid from {grid_path}')
+        else:
+            load_failed = True
+    if not load_failed:
+        return NA.grids
 
     NA_grids = []
     print('Computing NA GAC...')
@@ -69,6 +79,7 @@ def get_gac_grids(genea_entries_datasets,
                                     weigth=weigth)
         # Clip the grid to 0-1
         NA_grids.append(np.clip(grid.grid, 0, 1))
+    NA.grids = NA_grids
 
     # For each entry, rasterize the poses and compute the dice score
     print('Computing GAC for each take and entry...')
@@ -81,6 +92,9 @@ def get_gac_grids(genea_entries_datasets,
                                             grid_step=grid_step,
                                             weigth=weigth)
                 entry_dataset.grids.append(np.clip(grid.grid, 0, 1))
+
+    for entry_dataset in genea_entries_datasets:
+        np.save(os.path.join(gac_save_path, f'{entry_dataset.name}_grid'), entry_dataset.grids)
 
     return NA_grids
 
@@ -104,6 +118,11 @@ def run_mismatch_gac(NA_grids, genea_entries_datasets):
     
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-r', '--runs', type=int, default=100, help='Number of times to compute random GAC.')
+    args = parser.parse_args()
+
+
     # GENEA 2023 entries aligned with human-likeness median ratings
     genea23_aligned_entries = ['NA', 'SG', 'SF', 'SJ', 'SL', 'SE', 'SH', 'BD', 'SD', 'BM', 'SI', 'SK', 'SA', 'SB', 'SC']
     hl_median               = [  71,   69,   65,   51,   51,   50,   46,   46,   45,   43,   40,   37,   30,   24,    9]
@@ -114,26 +133,27 @@ if __name__ == '__main__':
 
     genea_trn_loader, genea_entries_loaders, genea_entries_datasets = load_data_genea(genea23_aligned_entries)
 
-    runs=100
-    aligned_setstats = mismatch_gac_genea(genea_entries_datasets, runs=runs)
+    aligned_setstats = mismatch_gac_genea(genea_entries_datasets, runs=args.runs)
 
     fig = plots.random_dices_boxplot(np.asarray(genea23_aligned_entries[1:]),
                                      genea_entries_loaders,
                                      np.asarray(dice),
                                      #np.asarray(app_pref_match[1:]),
                                      )
-    fig.save(f'./figures/random_exp_{runs}runs_humlike_aligned.png')
+    fig.savefig(f'./figures/random_exp_{args.runs}runs_humlike_aligned.png')
 
     fig = plots.random_dices_boxplot(np.asarray(genea23_aligned_entries[1:]),
                                      genea_entries_loaders,
                                      np.asarray(dice),
                                      np.asarray(app_mas[1:]),
                                      )
-    fig.save(f'./figures/random_exp_{runs}runs_appmas_aligned.png')
+    fig.savefig(f'./figures/random_exp_{args.runs}runs_appmas_aligned.png')
 
     fig = plots.random_dices_boxplot(np.asarray(genea23_aligned_entries[1:]),
                                      genea_entries_loaders,
                                      np.asarray(dice),
                                      np.asarray(app_pref_match[1:]),
                                      )
-    fig.save(f'./figures/random_exp_{runs}runs_apppref_aligned.png')
+    fig.savefig(f'./figures/random_exp_{args.runs}runs_apppref_aligned.png')
+
+    print(f'Dice means: {[np.mean(genea_entries_loaders[entry].dataset.dice) for entry in genea23_aligned_entries[1:]]}')
