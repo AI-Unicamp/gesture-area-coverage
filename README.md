@@ -1,5 +1,8 @@
 # Gesture Area Coverage
 
+
+[![DOI](https://zenodo.org/badge/838500535.svg)](https://doi.org/10.5281/zenodo.14207314)
+
 Implementaion of the paper [Gesture Area Coverage to Assess Gesture Expressiveness and Human-Likeness](https://openreview.net/forum?id=Iso5lbByDI).
 
 Gesture Area Coverage (GAC) explicitly considers the spatial coverage of gestures within motion sequences and it is useful for evaluating the expressiveness of co-speech gestures.
@@ -239,13 +242,6 @@ Complete result of the GAC metrics for the ZEGGS dataset:
 
 Please consider citing our paper:
 
+[![DOI](https://zenodo.org/badge/838500535.svg)](https://doi.org/10.5281/zenodo.14207314)
 
-```text
-@inproceedings{tonoli2023gesture,
-  title={Gesture Area Coverage to Assess Gesture Expressiveness and Human-Likeness},
-  author={Tonoli, Rodolfo L and Costa, Paula Dornhofer Paro and Marques, Leonardo B de MM and Ueda, Lucas H},
-  booktitle={Companion Publication of the 26th International Conference on Multimodal Interaction},
-  pages={N/A},
-  year={2024}
-}
 ```
