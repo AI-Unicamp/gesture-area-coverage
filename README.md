@@ -239,6 +239,7 @@ Complete result of the GAC metrics for the ZEGGS dataset:
 
 Please consider citing our paper:
 
+
 ```text
 @inproceedings{tonoli2023gesture,
   title={Gesture Area Coverage to Assess Gesture Expressiveness and Human-Likeness},
